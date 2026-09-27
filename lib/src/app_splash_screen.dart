@@ -25,6 +25,13 @@ class AppSplashScreen extends StatefulWidget {
   /// Custom text style for [appName]. If provided, merges with the theme-aware default style.
   final TextStyle? appNameStyle;
 
+  /// Custom font family for [appName]. Defaults to 'Caveat' (handwritten cursive).
+  final String? appNameFontFamily;
+
+  /// Custom fallback font families for [appName].
+  /// Defaults to `['Dancing Script', 'Brush Script MT', 'cursive', 'sans-serif']`.
+  final List<String>? appNameFontFamilyFallback;
+
   /// Small prefix displayed above the company name in the footer.
   /// Defaults to "from".
   final String companyPrefix;
@@ -133,6 +140,13 @@ class AppSplashScreen extends StatefulWidget {
     this.appName = 'Lupus Arena',
     this.appLogo,
     this.appNameStyle,
+    this.appNameFontFamily = 'Caveat',
+    this.appNameFontFamilyFallback = const [
+      'Dancing Script',
+      'Brush Script MT',
+      'cursive',
+      'sans-serif',
+    ],
     this.companyPrefix = 'from',
     this.companyPrefixStyle,
     this.companyName = 'ghdinteractivestudio',
@@ -469,11 +483,15 @@ class _AppSplashScreenState extends State<AppSplashScreen>
         ? const Color(0xFFF8FAFC)
         : const Color(0xFF0F172A);
 
-    // High impact, bold centered typography
+    // High impact, handwritten bold centered typography with tight kerning
     final resolvedAppNameStyle = TextStyle(
-      fontSize: 34.0,
-      fontWeight: FontWeight.w900,
-      letterSpacing: 2.8,
+      fontSize: 44.0,
+      fontWeight: FontWeight.w700,
+      letterSpacing: -1.2,
+      fontStyle: FontStyle.italic,
+      fontFamily: widget.appNameFontFamily ?? 'Caveat',
+      fontFamilyFallback: widget.appNameFontFamilyFallback ??
+          const ['Dancing Script', 'Brush Script MT', 'cursive', 'sans-serif'],
       color: defaultAppNameColor,
     ).merge(widget.appNameStyle);
 
