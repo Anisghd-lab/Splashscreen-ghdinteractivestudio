@@ -33,11 +33,6 @@ class _SplashDemoAppState extends State<SplashDemoApp> {
       home: Builder(
         builder: (context) => AppSplashScreen(
           appName: 'Lupus Arena',
-          appLogo: const Icon(
-            Icons.shield_moon_rounded,
-            size: 72,
-            color: Color(0xFF9D4EDD),
-          ),
           companyPrefix: 'from',
           companyName: 'ghdinteractivestudio',
           companyNameGradient: AppSplashScreen.arcaneGradient,
@@ -119,11 +114,6 @@ class HomeScreen extends StatelessWidget {
                       page: Builder(
                         builder: (ctx) => AppSplashScreen(
                           appName: 'Lupus Arena',
-                          appLogo: const Icon(
-                            Icons.shield_moon_rounded,
-                            size: 72,
-                            color: Color(0xFF9D4EDD),
-                          ),
                           companyPrefix: 'from',
                           companyName: 'ghdinteractivestudio',
                           companyNameGradient: AppSplashScreen.arcaneGradient,

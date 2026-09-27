@@ -77,11 +77,11 @@ class AppSplashScreen extends StatefulWidget {
   final Gradient? backgroundGradient;
 
   /// Initial scale of the central element (appName + appLogo) before animating to 1.0.
-  /// Defaults to 0.85 (Meta/Instagram signature scale).
+  /// Defaults to 0.78 (Threads / Meta signature pop scale).
   final double scaleBegin;
 
   /// Animation curve for the entrance zoom and fade.
-  /// Defaults to [Curves.easeOutCubic].
+  /// Defaults to [Curves.easeOutBack] for a bouncy Threads-style entrance.
   final Curve curve;
 
   /// Animation curve for the exit transition.
@@ -91,6 +91,19 @@ class AppSplashScreen extends StatefulWidget {
   /// Whether to play a smooth fade/scale exit transition before calling [onFinish].
   /// Defaults to true.
   final bool showExitTransition;
+
+  /// Whether to enable subtle organic floating & breathing kinetic motion (Threads style)
+  /// while the title is displayed.
+  /// Defaults to true.
+  final bool enableThreadsMotion;
+
+  /// Duration of each oscillation cycle of the Threads kinetic motion.
+  /// Defaults to 1200 ms.
+  final Duration motionDuration;
+
+  /// Exit scale factor when transitioning out (Threads zoom-through dissolve).
+  /// Defaults to 1.20.
+  final double exitScaleEnd;
 
   /// Vertical spacing between [appLogo] and [appName].
   /// Defaults to 16.0.
@@ -129,15 +142,18 @@ class AppSplashScreen extends StatefulWidget {
     this.onFinish,
     this.preloadFuture,
     this.duration = const Duration(milliseconds: 2500),
-    this.entranceDuration = const Duration(milliseconds: 900),
-    this.exitDuration = const Duration(milliseconds: 350),
+    this.entranceDuration = const Duration(milliseconds: 800),
+    this.exitDuration = const Duration(milliseconds: 400),
     this.themeMode = ThemeMode.system,
     this.backgroundColor,
     this.backgroundGradient,
-    this.scaleBegin = 0.85,
-    this.curve = Curves.easeOutCubic,
+    this.scaleBegin = 0.78,
+    this.curve = Curves.easeOutBack,
     this.exitCurve = Curves.easeInOutCubic,
     this.showExitTransition = true,
+    this.enableThreadsMotion = true,
+    this.motionDuration = const Duration(milliseconds: 1200),
+    this.exitScaleEnd = 1.20,
     this.centerSpacing = 16.0,
     this.footerSpacing = 4.0,
     this.companyLogoSpacing = 8.0,
@@ -202,10 +218,17 @@ class AppSplashScreen extends StatefulWidget {
 class _AppSplashScreenState extends State<AppSplashScreen>
     with TickerProviderStateMixin {
   late final AnimationController _entranceController;
+  late final AnimationController _motionController;
   late final AnimationController _exitController;
 
   late final Animation<double> _centerScaleAnimation;
   late final Animation<double> _centerFadeAnimation;
+  late final Animation<Offset> _centerSlideAnimation;
+
+  late final Animation<Offset> _motionOffsetAnimation;
+  late final Animation<double> _motionScaleAnimation;
+  late final Animation<double> _motionRotationAnimation;
+
   late final Animation<double> _footerFadeAnimation;
   late final Animation<Offset> _footerSlideAnimation;
 
@@ -228,11 +251,17 @@ class _AppSplashScreenState extends State<AppSplashScreen>
       duration: widget.entranceDuration,
     );
 
+    _motionController = AnimationController(
+      vsync: this,
+      duration: widget.motionDuration,
+    );
+
     _exitController = AnimationController(
       vsync: this,
       duration: widget.exitDuration,
     );
 
+    // Threads entrance: bouncy pop + fade + slight vertical reveal
     _centerScaleAnimation = Tween<double>(
       begin: widget.scaleBegin,
       end: 1.0,
@@ -253,6 +282,48 @@ class _AppSplashScreenState extends State<AppSplashScreen>
       ),
     );
 
+    _centerSlideAnimation = Tween<Offset>(
+      begin: const Offset(0.0, 0.12),
+      end: Offset.zero,
+    ).animate(
+      CurvedAnimation(
+        parent: _entranceController,
+        curve: Curves.easeOutCubic,
+      ),
+    );
+
+    // Threads kinetic idle motion: gentle float, breathing scale, and organic tilt wave
+    _motionOffsetAnimation = Tween<Offset>(
+      begin: Offset.zero,
+      end: const Offset(0.0, -8.0),
+    ).animate(
+      CurvedAnimation(
+        parent: _motionController,
+        curve: Curves.easeInOutSine,
+      ),
+    );
+
+    _motionScaleAnimation = Tween<double>(
+      begin: 1.0,
+      end: 1.035,
+    ).animate(
+      CurvedAnimation(
+        parent: _motionController,
+        curve: Curves.easeInOutSine,
+      ),
+    );
+
+    _motionRotationAnimation = Tween<double>(
+      begin: -0.012,
+      end: 0.012,
+    ).animate(
+      CurvedAnimation(
+        parent: _motionController,
+        curve: Curves.easeInOutSine,
+      ),
+    );
+
+    // Footer entrance
     _footerFadeAnimation = Tween<double>(
       begin: 0.0,
       end: 1.0,
@@ -273,6 +344,7 @@ class _AppSplashScreenState extends State<AppSplashScreen>
       ),
     );
 
+    // Exit transition: zoom forward and fade out
     _exitFadeAnimation = Tween<double>(
       begin: 1.0,
       end: 0.0,
@@ -285,7 +357,7 @@ class _AppSplashScreenState extends State<AppSplashScreen>
 
     _exitScaleAnimation = Tween<double>(
       begin: 1.0,
-      end: 1.03,
+      end: widget.exitScaleEnd,
     ).animate(
       CurvedAnimation(
         parent: _exitController,
@@ -293,7 +365,13 @@ class _AppSplashScreenState extends State<AppSplashScreen>
       ),
     );
 
-    _entranceController.forward();
+    // Sequence: Entrance -> Threads Kinetic Motion ("bouge") -> Exit Transition ("disparaît")
+    _entranceController.forward().whenComplete(() {
+      if (mounted && !_isExiting && widget.enableThreadsMotion) {
+        _motionController.repeat(reverse: true);
+      }
+    });
+
     _startSplashSequence();
   }
 
@@ -325,6 +403,7 @@ class _AppSplashScreenState extends State<AppSplashScreen>
     if (!mounted || _isExiting) return;
     _isExiting = true;
     _splashTimer?.cancel();
+    _motionController.stop();
 
     if (widget.showExitTransition) {
       _exitController.addStatusListener((status) {
@@ -347,6 +426,8 @@ class _AppSplashScreenState extends State<AppSplashScreen>
   @override
   void dispose() {
     _splashTimer?.cancel();
+    _motionController.stop();
+    _motionController.dispose();
     _entranceController.dispose();
     _exitController.dispose();
     super.dispose();
@@ -378,7 +459,7 @@ class _AppSplashScreenState extends State<AppSplashScreen>
 
     final defaultAppNameColor = isDark
         ? const Color(0xFFF8FAFC)
-        : const Color(0xFF1E293B);
+        : const Color(0xFF0F172A);
 
     final defaultPrefixColor = isDark
         ? const Color(0xFF94A3B8)
@@ -388,10 +469,11 @@ class _AppSplashScreenState extends State<AppSplashScreen>
         ? const Color(0xFFF8FAFC)
         : const Color(0xFF0F172A);
 
+    // High impact, bold centered typography
     final resolvedAppNameStyle = TextStyle(
-      fontSize: 26.0,
-      fontWeight: FontWeight.w700,
-      letterSpacing: 1.5,
+      fontSize: 34.0,
+      fontWeight: FontWeight.w900,
+      letterSpacing: 2.8,
       color: defaultAppNameColor,
     ).merge(widget.appNameStyle);
 
@@ -479,67 +561,92 @@ class _AppSplashScreenState extends State<AppSplashScreen>
           decoration: widget.backgroundGradient != null
               ? BoxDecoration(gradient: widget.backgroundGradient)
               : null,
-          child: FadeTransition(
-            opacity: _exitFadeAnimation,
-            child: ScaleTransition(
-              scale: _exitScaleAnimation,
-              child: Stack(
-                children: [
-                  // Center Content (App Name & Logo)
-                  Center(
-                    child: FadeTransition(
-                      opacity: _centerFadeAnimation,
-                      child: ScaleTransition(
-                        scale: _centerScaleAnimation,
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          children: centerChildren,
-                        ),
-                      ),
-                    ),
-                  ),
-
-                  // Footer Content ("from [company]")
-                  Align(
-                    alignment: Alignment.bottomCenter,
-                    child: SafeArea(
-                      top: false,
-                      left: false,
-                      right: false,
-                      child: Padding(
-                        padding: EdgeInsets.only(
-                          bottom: widget.footerBottomPadding,
-                        ),
-                        child: FadeTransition(
-                          opacity: _footerFadeAnimation,
+          child: Stack(
+            children: [
+              // Center Content with Threads sequence:
+              // 1. Entrance Pop + Slide
+              // 2. Kinetic Floating & Breathing wave ("bouge")
+              // 3. Exit Zoom-through & Fade ("disparaît")
+              Center(
+                child: FadeTransition(
+                  opacity: _exitFadeAnimation,
+                  child: ScaleTransition(
+                    scale: _exitScaleAnimation,
+                    child: AnimatedBuilder(
+                      animation: _motionController,
+                      builder: (context, child) {
+                        if (!widget.enableThreadsMotion) return child!;
+                        return Transform.translate(
+                          offset: _motionOffsetAnimation.value,
+                          child: Transform.rotate(
+                            angle: _motionRotationAnimation.value,
+                            child: Transform.scale(
+                              scale: _motionScaleAnimation.value,
+                              child: child,
+                            ),
+                          ),
+                        );
+                      },
+                      child: FadeTransition(
+                        opacity: _centerFadeAnimation,
+                        child: ScaleTransition(
+                          scale: _centerScaleAnimation,
                           child: SlideTransition(
-                            position: _footerSlideAnimation,
+                            position: _centerSlideAnimation,
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
                               mainAxisAlignment: MainAxisAlignment.center,
                               crossAxisAlignment: CrossAxisAlignment.center,
-                              children: [
-                                if (widget.companyPrefix.isNotEmpty) ...[
-                                  Text(
-                                    widget.companyPrefix,
-                                    style: resolvedPrefixStyle,
-                                    textAlign: TextAlign.center,
-                                  ),
-                                  SizedBox(height: widget.footerSpacing),
-                                ],
-                                companyContent,
-                              ],
+                              children: centerChildren,
                             ),
                           ),
                         ),
                       ),
                     ),
                   ),
-                ],
+                ),
               ),
-            ),
+
+              // Footer Content ("from [company]")
+              Align(
+                alignment: Alignment.bottomCenter,
+                child: SafeArea(
+                  top: false,
+                  left: false,
+                  right: false,
+                  child: Padding(
+                    padding: EdgeInsets.only(
+                      bottom: widget.footerBottomPadding,
+                    ),
+                    child: FadeTransition(
+                      opacity: _exitFadeAnimation,
+                      child: FadeTransition(
+                        opacity: _footerFadeAnimation,
+                        child: SlideTransition(
+                          position: _footerSlideAnimation,
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              if (widget.companyPrefix.isNotEmpty) ...[
+                                Text(
+                                  widget.companyPrefix,
+                                  style: resolvedPrefixStyle,
+                                  textAlign: TextAlign.center,
+                                ),
+                                SizedBox(height: widget.footerSpacing),
+                              ],
+                              companyContent,
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),
